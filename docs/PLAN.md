@@ -6,6 +6,7 @@ Spec IDs (F1.1, F2.3, …) refer to [SPEC.md](SPEC.md).
 
 | # | Phase | Done when | Covers |
 |---|---|---|---|
+| 0 | Machine setup | Every tool in the Phase 0 table below reports a version; repo cloned | — |
 | 1 | Skeleton | `docker compose up` runs Rails, Postgres, Redis (AOF, `appendfsync always`), Sidekiq, and the sweeper; seed creates one product with 1,000 units | — |
 | 2 | Designs A and B | `/naive/checkout` and `/locked/checkout` work for one buyer; request specs pass | F2.1 |
 | 3 | Invariant + k6 | `bin/check_invariant` works; `load/checkout.js` runs 5,000 VUs × 1 attempt against A and B; A oversells | F2.2, F2.3 |
@@ -18,6 +19,31 @@ Spec IDs (F1.1, F2.3, …) refer to [SPEC.md](SPEC.md).
 | 10 | Write-up | README results tables filled from `results/`; architecture diagram; 60-second demo video | — |
 
 At the end of **phase 6**, the early-stage bullets in SPEC.md are true. At the end of **phase 8**, the full bullets can be filled from `results/`.
+
+---
+
+## Phase 0: Set up your machine (manual, once)
+
+Build on your **personal** computer and personal GitHub account.
+
+| Tool | Why | Check |
+|---|---|---|
+| Git | Version control | `git --version` |
+| Docker Desktop (Windows: with WSL2 backend) | Runs Rails, Postgres, Redis, Sidekiq, and the sweeper together | `docker compose version` |
+| Ruby 3.3+ and Rails 8 | Generating the app in phase 1 (`gem install rails`) | `ruby -v`, `rails -v` |
+| k6 | Load tests from phase 3 | `k6 version` |
+| Claude Code or Codex CLI | Writing the code phase by phase | `claude --version` / `codex --version` |
+
+On Windows, run everything inside WSL2 (Ubuntu) and keep the repo in the Linux file system (for example `~/code/Flash-Point`), not under `/mnt/c`, for much faster Docker and Ruby performance.
+
+Then:
+
+```bash
+git clone https://github.com/CharlieNotChilly/Flash-Point.git
+cd Flash-Point
+```
+
+Postgres and Redis don't need separate installs; they run in Docker. In phase 1, if `rails new` asks to overwrite `README.md`, answer **n**.
 
 ---
 

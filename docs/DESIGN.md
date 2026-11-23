@@ -13,6 +13,19 @@ if stock >= qty:
 
 Two buyers can both read `stock = 1`, both pass the check, and both buy. The store oversells. Flashpoint compares three designs and proves the third is correct, fast, and survives crashes.
 
+## Goals and non-goals
+
+**Goals**
+- Zero oversold units with 5,000 concurrent buyers on 1,000 units of stock.
+- Zero lost or duplicate orders, including when Sidekiq or Redis is killed mid-sale.
+- Higher measured throughput than the correct-but-slow Postgres row-lock design.
+- Evidence for every claim: load-test results, chaos-test results, and an invariant check, all saved in `results/`.
+
+**Non-goals** (do not build these)
+- Payments, user accounts, authentication, multi-product carts, or a storefront UI.
+- Multi-region deployment, Redis Cluster, or multiple Redis nodes (discuss as future work only).
+- Production hosting; everything runs locally in Docker Compose.
+
 | Design | How it works | Expected result |
 |---|---|---|
 | **A. Naive** | Read, check, write; no locking | Oversells |
