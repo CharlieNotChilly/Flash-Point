@@ -1,0 +1,14 @@
+default: &default
+  adapter: postgresql
+  host: <%= ENV.fetch("POSTGRES_HOST", "localhost") %>
+  username: flashpoint
+  password: <%= ENV.fetch("POSTGRES_PASSWORD", "flashpoint") %>
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
+
+development:
+  <<: *default
+  database: flashpoint_development
+
+test:
+  <<: *default
+  database: flashpoint_test

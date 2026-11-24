@@ -30,13 +30,20 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the architecture, data model, Redis key
 
 ## Running it
 
-_Filled in during phase 1._
+From the repository root, start Docker Desktop or Docker Engine and run:
 
 ```sh
-docker compose up
-bin/load_test flashpoint
-bin/chaos --runs 50
+docker compose up --build -d --wait
+curl -fsS http://localhost:3000/up
+docker compose exec web bin/rails runner 'p Product.pluck(:sku, :initial_stock, :stock)'
+docker compose logs --tail=5 sweeper
 ```
+
+On first boot, Rails prepares PostgreSQL and seeds `FLASH-1`. Subsequent boots preserve stock and orders. Sidekiq connects to Redis and the sweeper logs a heartbeat every second. To change Puma concurrency, set `WEB_CONCURRENCY` and `RAILS_MAX_THREADS` when starting Compose.
+
+On a freshly seeded stack, run `test/phase_one_smoke.sh` to check Rails, the seed, Redis durability, Sidekiq registration, and sweeper activity.
+
+Run `docker compose down` to stop the stack. PostgreSQL and Redis store their data in named volumes.
 
 ## Project docs
 

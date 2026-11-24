@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+$stdout.sync = true
+trap("TERM") { exit }
+trap("INT") { exit }
+
+loop do
+  puts "sweeper heartbeat"
+  sleep 1
+end
