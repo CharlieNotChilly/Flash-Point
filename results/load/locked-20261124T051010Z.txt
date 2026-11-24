@@ -1,0 +1,14 @@
+  [1m[36mTRANSACTION (0.1ms)[0m  [1m[35mBEGIN ISOLATION LEVEL REPEATABLE READ[0m
+  [1m[36mProduct Load (0.2ms)[0m  [1m[34mSELECT "products".* FROM "products" WHERE "products"."sku" = $1 LIMIT $2[0m  [["sku", "FLASH-1"], ["LIMIT", 1]]
+  [1m[36mOrder Sum (0.3ms)[0m  [1m[34mSELECT SUM("orders"."quantity") FROM "orders" WHERE "orders"."product_id" = $1[0m  [["product_id", 1]]
+  [1m[36mOrder Count (0.1ms)[0m  [1m[34mSELECT COUNT(*) FROM "orders"[0m
+  [1m[36mOrder Count (0.5ms)[0m  [1m[34mSELECT COUNT(DISTINCT "orders"."idempotency_key") FROM "orders"[0m
+  [1m[36mTRANSACTION (0.1ms)[0m  [1m[35mCOMMIT[0m
+initial_stock=1000
+remaining_stock=0
+active_hold_qty=0
+order_qty=1000
+order_count=1000
+distinct_idempotency_keys=1000
+oversold=0
+invariant=PASS

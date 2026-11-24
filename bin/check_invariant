@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+require_relative "../config/environment"
+require_relative "../lib/stock_invariant"
+
+# Read stock and orders from the same PostgreSQL snapshot.
+report = Product.transaction(isolation: :repeatable_read) { StockInvariant.read("FLASH-1") }
+report.to_h.each { |field, value| puts "#{field}=#{value}" }
+puts "oversold=#{report.oversold}"
+puts "invariant=#{report.valid? ? 'PASS' : 'FAIL'}"
+exit(report.valid? ? 0 : 1)
