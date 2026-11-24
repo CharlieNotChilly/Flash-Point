@@ -45,6 +45,22 @@ On a freshly seeded stack, run `test/phase_one_smoke.sh` to check Rails, the see
 
 Run `docker compose down` to stop the stack. PostgreSQL and Redis store their data in named volumes.
 
+## PostgreSQL checkout baselines
+
+Both endpoints accept a JSON body such as `{"sku":"FLASH-1","qty":1}`. A purchase returns `201` with an `order_id`. Insufficient stock returns `409` with `{"error":"SOLD_OUT"}`.
+
+- **Design A** (`POST /naive/checkout`) reads stock without locking the row and writes the balance calculated in Ruby. Concurrent buyers can both read the same balance.
+- **Design B** (`POST /locked/checkout`) reads the product with `SELECT ... FOR UPDATE`. PostgreSQL holds the row lock until the stock update and order insert commit together.
+
+Run the request specs against the test database:
+
+```sh
+docker compose exec -e RAILS_ENV=test web bin/rails db:prepare
+docker compose exec -e RAILS_ENV=test web bundle exec rspec
+```
+
+Between runs, `docker compose exec web bin/rails checkout:reset` deletes all development orders and restores each product’s stock to its initial value.
+
 ## Project docs
 
 - [docs/SPEC.md](docs/SPEC.md): acceptance criteria
