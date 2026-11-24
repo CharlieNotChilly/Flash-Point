@@ -264,6 +264,7 @@ DEPENDENCIES
   pg (~> 1.6)
   puma (~> 7.0)
   rails (~> 8.1.4)
+  redis-client (~> 0.31)
   rspec-rails (~> 8.0)
   sidekiq (~> 8.0)
 

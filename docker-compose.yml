@@ -4,6 +4,7 @@ x-app: &app
     POSTGRES_HOST: postgres
     REDIS_URL: redis://redis:6379/0
     RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-5}
+    HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-60}
     WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
 
 services:

@@ -63,6 +63,12 @@ Between runs, `docker compose exec web bin/rails checkout:reset` deletes all dev
 
 Run `bin/load_test locked` from the host with Compose running. It resets development stock and orders, runs the locked checkout benchmark, and saves the k6 summary and inventory check under a matching timestamp in `results/load/`. A failed threshold, inventory mismatch, or discrepancy between purchases and committed orders makes the command exit nonzero.
 
+## Redis reservations
+
+After rebuilding Compose, run `docker compose exec web bin/rails db:seed` once for an existing installation. The seed initializes the Redis allocation for `FLASH-1` and preserves an existing balance. The PostgreSQL and Redis allocations belong to separate benchmark designs.
+
+`POST /reserve` accepts `sku` and a positive integer `qty` and returns a hold ID and an expiry in Unix epoch milliseconds. `HOLD_TTL_SECONDS` controls the reservation lifetime (default 60 seconds). Send the hold ID as `hold_id` to `POST /confirm` or `POST /release`. Confirmation at or after the deadline returns `410 HOLD_EXPIRED`. A successful confirmation adds the hold to `confirmed:pending`. Release restores stock for a held reservation exactly once. Automatic stock return and the order writer are scheduled for Phase 6.
+
 ## Project docs
 
 - [docs/SPEC.md](docs/SPEC.md): acceptance criteria
