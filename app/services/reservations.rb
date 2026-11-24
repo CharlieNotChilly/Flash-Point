@@ -10,7 +10,7 @@ class Reservations
   TTL = Integer(ENV.fetch("HOLD_TTL_SECONDS", 60))
   raise ArgumentError, "HOLD_TTL_SECONDS must be positive" unless TTL.positive?
 
-  SCRIPTS = %w[reserve confirm release].to_h do |name|
+  SCRIPTS = %w[reserve confirm release expire inventory].to_h do |name|
     source = Rails.root.join("lib/lua", "#{name}.lua").read
     [name, [Digest::SHA1.hexdigest(source), source]]
   end
@@ -33,6 +33,14 @@ class Reservations
 
   def self.release(hold_id)
     run("release", ["hold:#{hold_id}"], hold_id)
+  end
+
+  def self.expire(sku, now: Time.current)
+    run("expire", ["stock:#{sku}", "holds:expiry:#{sku}"], (now.to_r * 1000).floor)
+  end
+
+  def self.inventory(sku)
+    run("inventory", ["stock:#{sku}", "holds:expiry:#{sku}"])
   end
 
   def self.run(name, keys, *args)

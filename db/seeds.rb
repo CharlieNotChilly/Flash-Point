@@ -4,4 +4,4 @@ product = Product.find_or_create_by!(sku: "FLASH-1") do |product|
   product.stock = 1000
 end
 
-Reservations::REDIS.call("SET", "stock:#{product.sku}", product.initial_stock, "NX")
+ReservationMaintenance.restore_stock(product)

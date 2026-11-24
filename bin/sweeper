@@ -1,9 +1,16 @@
 #!/usr/bin/env ruby
+require_relative "../config/environment"
+
 $stdout.sync = true
 trap("TERM") { exit }
 trap("INT") { exit }
 
 loop do
-  puts "sweeper heartbeat"
+  begin
+    ReservationMaintenance.sweep
+    puts "sweeper heartbeat"
+  rescue RedisClient::ConnectionError, ActiveRecord::ConnectionNotEstablished => error
+    warn error.message
+  end
   sleep 1
 end

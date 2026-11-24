@@ -17,8 +17,11 @@ class ReservationsController < ApplicationController
   end
 
   def confirm
-    case Reservations.confirm(params.expect(:hold_id), idem_key: @idem_key)
-    when "CONFIRMED"
+    hold_id = params.expect(:hold_id)
+    result = Reservations.confirm(hold_id, idem_key: @idem_key)
+    case result
+    when "CONFIRMED", "ALREADY_CONFIRMED"
+      PersistOrderJob.perform_async(hold_id) if result == "CONFIRMED"
       render json: { status: "pending" }, status: :accepted
     when "KEY_MISMATCH"
       render json: { error: "KEY_MISMATCH" }, status: :conflict

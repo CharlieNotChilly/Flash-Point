@@ -37,7 +37,7 @@ services:
     <<: *app
     build: .
     pull_policy: build
-    command: ["sh", "-ec", "bin/rails db:prepare && exec bundle exec puma -C config/puma.rb"]
+    command: ["sh", "-ec", "bin/rails db:prepare && bin/rails runner 'Product.find_each { |p| ReservationMaintenance.restore_stock(p) }' && exec bundle exec puma -C config/puma.rb"]
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:

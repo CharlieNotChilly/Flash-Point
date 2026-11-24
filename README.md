@@ -59,7 +59,7 @@ docker compose exec -e RAILS_ENV=test web bin/rails db:prepare
 docker compose exec -e RAILS_ENV=test web bundle exec rspec
 ```
 
-Between runs, `docker compose exec web bin/rails checkout:reset` deletes all development orders and restores each product’s stock to its initial value.
+Between runs, `docker compose exec web bin/rails checkout:reset` deletes development orders for designs A and B and restores each product’s stock to its initial value.
 
 Run `bin/load_test locked` from the host with Compose running. It resets development stock and orders, runs the locked checkout benchmark, and saves the k6 summary and inventory check under a matching timestamp in `results/load/`. A failed threshold, inventory mismatch, or discrepancy between purchases and committed orders makes the command exit nonzero.
 
@@ -67,7 +67,9 @@ Run `bin/load_test locked` from the host with Compose running. It resets develop
 
 After rebuilding Compose, run `docker compose exec web bin/rails db:seed` once for an existing installation. The seed initializes the Redis allocation for `FLASH-1` and preserves an existing balance. The PostgreSQL and Redis allocations belong to separate benchmark designs.
 
-`POST /reserve` accepts `sku` and a positive integer `qty` and returns a hold ID and an expiry in Unix epoch milliseconds. `HOLD_TTL_SECONDS` controls the reservation lifetime (default 60 seconds). Send the hold ID as `hold_id` to `POST /confirm` or `POST /release`. Confirmation at or after the deadline returns `410 HOLD_EXPIRED`. A successful confirmation adds the hold to `confirmed:pending`. Release restores stock for a held reservation exactly once. Automatic stock return and the order writer are scheduled for Phase 6.
+`POST /reserve` accepts `sku` and a positive integer `qty` and returns a hold ID and an expiry in Unix epoch milliseconds. `HOLD_TTL_SECONDS` controls the reservation lifetime (default 60 seconds). Send the hold ID as `hold_id` to `POST /confirm` or `POST /release`. Confirmation at or after the deadline returns `410 HOLD_EXPIRED`. A successful confirmation adds the hold to `confirmed:pending`. Release restores stock for a held reservation exactly once. The sweeper returns expired stock every second. Sidekiq writes confirmed orders to PostgreSQL and removes their pending entries after commit. The sweeper re-enqueues confirmations that have been pending for more than five seconds. On startup, the web service rebuilds a missing Redis stock balance before Puma accepts requests.
+
+After traffic stops, run `docker compose exec web bin/check_invariant flashpoint` to wait for pending writes and check Redis stock, active holds, and committed Flashpoint orders. The default invocation still checks the PostgreSQL checkout baselines.
 
 Use one `Idempotency-Key` header value per checkout attempt. Send the same key on reserve, confirm, and retries of either request. Repeated reserves return the original hold ID and deadline (or the original sold-out response). Repeated confirmations return the same pending response. Replaying a released reservation returns its original receipt and leaves the stock available.
 

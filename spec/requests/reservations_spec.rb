@@ -5,6 +5,8 @@ RSpec.describe "Reservation endpoints", type: :request do
   include ActiveSupport::Testing::TimeHelpers
   include_context "reservation stock"
 
+  before { allow(PersistOrderJob).to receive(:perform_async) }
+
   let(:headers) { { "Idempotency-Key" => sku } }
 
   it "reserves, confirms, and acknowledges the pending order" do
@@ -109,7 +111,10 @@ RSpec.describe "Reservation endpoints", type: :request do
       expect(response).to have_http_status(:accepted)
       expect(redis.call("ZSCORE", "confirmed:pending", id)).to eq(first_confirmation)
     end
-    expect(Order.where(hold_id: id)).to be_empty
+    expect(PersistOrderJob).to have_received(:perform_async).with(id).once
+    Product.create!(sku: sku, name: "Retry test", stock: 10, initial_stock: 10)
+    2.times { PersistOrderJob.new.perform(id) }
+    expect(Order.where(hold_id: id).count).to eq(1)
   end
 
   def concurrent_requests(path, params, headers)
