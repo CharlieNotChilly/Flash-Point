@@ -16,17 +16,19 @@ class Reservations
   end
 
   def self.reserve(sku:, qty:, idem_key: nil, now: Time.current)
-    hold_id = SecureRandom.uuid
     expires_at = (now.to_r * 1000).floor + TTL * 1000
-    result = run("reserve", ["stock:#{sku}", "hold:#{hold_id}", "holds:expiry:#{sku}"],
-                 sku, qty, hold_id, idem_key || hold_id, expires_at)
+    # The opaque ID carries the original deadline so retries still work after release deletes the hold.
+    hold_id = "#{SecureRandom.uuid}.#{expires_at}"
+    idem_key ||= hold_id
+    result = run("reserve", ["stock:#{sku}", "hold:#{hold_id}", "holds:expiry:#{sku}", "idem:#{idem_key}"],
+                 sku, qty, hold_id, idem_key, expires_at)
     return if result == "SOLD_OUT"
 
-    { hold_id: hold_id, expires_at: expires_at }
+    { hold_id: result, expires_at: Integer(result.split(".").last) }
   end
 
-  def self.confirm(hold_id, now: Time.current)
-    run("confirm", ["hold:#{hold_id}", "confirmed:pending"], hold_id, (now.to_r * 1000).floor)
+  def self.confirm(hold_id, idem_key: hold_id, now: Time.current)
+    run("confirm", ["hold:#{hold_id}", "confirmed:pending"], hold_id, (now.to_r * 1000).floor, idem_key)
   end
 
   def self.release(hold_id)

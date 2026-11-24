@@ -1,4 +1,6 @@
 class ReservationsController < ApplicationController
+  before_action :require_idempotency_key, only: [:reserve, :confirm]
+
   def reserve
     sku = params.expect(:sku)
     qty = params[:qty].to_s
@@ -6,7 +8,7 @@ class ReservationsController < ApplicationController
       return render json: { error: "INVALID_QUANTITY" }, status: :bad_request
     end
 
-    hold = Reservations.reserve(sku: sku, qty: qty, idem_key: request.headers["Idempotency-Key"])
+    hold = Reservations.reserve(sku: sku, qty: qty, idem_key: @idem_key)
     if hold
       render json: hold, status: :created
     else
@@ -15,8 +17,11 @@ class ReservationsController < ApplicationController
   end
 
   def confirm
-    if Reservations.confirm(params.expect(:hold_id)) == "CONFIRMED"
+    case Reservations.confirm(params.expect(:hold_id), idem_key: @idem_key)
+    when "CONFIRMED"
       render json: { status: "pending" }, status: :accepted
+    when "KEY_MISMATCH"
+      render json: { error: "KEY_MISMATCH" }, status: :conflict
     else
       render json: { error: "HOLD_EXPIRED" }, status: :gone
     end
@@ -25,5 +30,14 @@ class ReservationsController < ApplicationController
   def release
     Reservations.release(params.expect(:hold_id))
     head :no_content
+  end
+
+  private
+
+  def require_idempotency_key
+    @idem_key = request.headers["Idempotency-Key"]
+    if @idem_key.blank?
+      render json: { error: "IDEMPOTENCY_KEY_REQUIRED" }, status: :bad_request
+    end
   end
 end

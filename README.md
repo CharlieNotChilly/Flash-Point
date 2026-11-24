@@ -69,6 +69,8 @@ After rebuilding Compose, run `docker compose exec web bin/rails db:seed` once f
 
 `POST /reserve` accepts `sku` and a positive integer `qty` and returns a hold ID and an expiry in Unix epoch milliseconds. `HOLD_TTL_SECONDS` controls the reservation lifetime (default 60 seconds). Send the hold ID as `hold_id` to `POST /confirm` or `POST /release`. Confirmation at or after the deadline returns `410 HOLD_EXPIRED`. A successful confirmation adds the hold to `confirmed:pending`. Release restores stock for a held reservation exactly once. Automatic stock return and the order writer are scheduled for Phase 6.
 
+Use one `Idempotency-Key` header value per checkout attempt. Send the same key on reserve, confirm, and retries of either request. Repeated reserves return the original hold ID and deadline (or the original sold-out response). Repeated confirmations return the same pending response. Replaying a released reservation returns its original receipt and leaves the stock available.
+
 ## Project docs
 
 - [docs/SPEC.md](docs/SPEC.md): acceptance criteria
