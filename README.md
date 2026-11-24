@@ -61,6 +61,8 @@ docker compose exec -e RAILS_ENV=test web bundle exec rspec
 
 Between runs, `docker compose exec web bin/rails checkout:reset` deletes all development orders and restores each product’s stock to its initial value.
 
+Run `bin/load_test locked` from the host with Compose running. It resets development stock and orders, runs the locked checkout benchmark, and saves the k6 summary and inventory check under a matching timestamp in `results/load/`. A failed threshold, inventory mismatch, or discrepancy between purchases and committed orders makes the command exit nonzero.
+
 ## Project docs
 
 - [docs/SPEC.md](docs/SPEC.md): acceptance criteria
