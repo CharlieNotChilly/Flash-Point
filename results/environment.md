@@ -1,4 +1,4 @@
-# Locked checkout benchmark environment
+# Checkout benchmark environment
 
 | Setting | Observed value |
 |---|---|

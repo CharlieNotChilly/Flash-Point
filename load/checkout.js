@@ -14,9 +14,11 @@ export const options = {
   },
 };
 
-if (__ENV.DESIGN && __ENV.DESIGN !== "locked") {
-  throw new Error("This benchmark supports DESIGN=locked");
-}
+const design = __ENV.DESIGN || "locked";
+if (!["locked", "flashpoint"].includes(design)) throw new Error("Unsupported checkout design");
+const port = __ENV.BENCH_PORT || "3000";
+if (!/^\d+$/.test(port)) throw new Error("BENCH_PORT must be a local port number");
+const base = `http://127.0.0.1:${port}`;
 
 const duration = new Trend("checkout_duration", true);
 const starts = new Trend("checkout_start_epoch_ms");
@@ -32,22 +34,36 @@ const params = {
   responseCallback: http.expectedStatuses(201, 409),
 };
 
+function json(response) {
+  try {
+    return response.json();
+  } catch (_) {
+    return null;
+  }
+}
+
 export default function () {
+  const flashpoint = design === "flashpoint";
+  const headers = { ...params.headers, "Idempotency-Key": `${__ENV.RUN_ID || "local"}-${__VU}` };
+  const request = flashpoint ? { ...params, headers } : params;
+  const path = flashpoint ? "/reserve" : "/locked/checkout";
   const start = Date.now();
-  const response = http.post("http://127.0.0.1:3000/locked/checkout", payload, params);
-  const end = Date.now();
+  const first = http.post(base + path, payload, request);
+  let end = Date.now();
+  const body = json(first);
+  const unavailable = first.status === 409 && body?.error === "SOLD_OUT";
+  let purchased = first.status === 201 && Number.isInteger(body?.order_id) && !flashpoint;
+  if (flashpoint && first.status === 201 && typeof body?.hold_id === "string") {
+    const confirm = http.post(base + "/confirm", JSON.stringify({ hold_id: body.hold_id }), {
+      ...request, responseCallback: http.expectedStatuses(202),
+    });
+    end = Date.now();
+    purchased = confirm.status === 202 && json(confirm)?.status === "pending";
+  }
+
   starts.add(start);
   ends.add(end);
   duration.add(end - start);
-
-  let body;
-  try {
-    body = response.json();
-  } catch (_) {
-    // Transport failures and non-JSON replies count as unexpected.
-  }
-  const purchased = response.status === 201 && Number.isInteger(body?.order_id);
-  const unavailable = response.status === 409 && body?.error === "SOLD_OUT";
   created.add(purchased ? 1 : 0);
   soldOut.add(unavailable ? 1 : 0);
   unexpected.add(purchased || unavailable ? 0 : 1);

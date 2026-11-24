@@ -1,0 +1,61 @@
+#!/usr/bin/env ruby
+require "json"
+require "tempfile"
+
+Dir.chdir(File.expand_path("../results/load", __dir__))
+
+def read_run(design, stem)
+  metrics = JSON.parse(File.read("#{stem}.json")).fetch("metrics")
+  report = File.read("#{stem}.txt").scan(/^(\w+)=(\w+)$/).to_h
+  count = metrics.fetch("iterations").fetch("count")
+  raise "incomplete attempts" unless count == 5000 && metrics.fetch("vus_max").fetch("max") == 5000
+  purchases = metrics.fetch("created").fetch("count")
+  unavailable = metrics.fetch("sold_out").fetch("count")
+  raise "unexpected checkout outcomes" unless purchases + unavailable == count && metrics.fetch("unexpected").fetch("count").zero?
+  requests = design == "flashpoint" ? count + purchases : count
+  raise "unexpected HTTP request count" unless metrics.fetch("http_reqs").fetch("count") == requests
+  raise "initial stock mismatch" unless report.fetch("initial_stock") == "1000"
+  raise "persisted purchase mismatch" unless %w[order_count order_qty distinct_idempotency_keys].all? { |k| Integer(report.fetch(k)) == purchases }
+  oversold = Integer(report.fetch("oversold"))
+  raise "oversold count mismatch" unless oversold == [purchases - 1000, 0].max
+  unless design == "naive"
+    raise "failed checkout invariant" unless report.fetch("invariant") == "PASS" && purchases == 1000 && oversold.zero?
+  end
+  elapsed = metrics.fetch("checkout_end_epoch_ms").fetch("max") - metrics.fetch("checkout_start_epoch_ms").fetch("min")
+  raise "invalid wall-clock duration" unless elapsed.positive?
+  { throughput: Rational(count * 1000, elapsed), p99: metrics.fetch("checkout_duration").fetch("p(99)"), oversold: oversold }
+end
+
+lines = ["# Checkout load results", "", "| Design | Oversold units | Attempts/s | Full-checkout p99 (ms) | Run evidence |",
+         "|---|---:|---:|---:|---|"]
+rates = {}
+errors = []
+%w[naive locked flashpoint].each do |design|
+  # Use the latest attempt, including one that produced only a partial pair.
+  stem = Dir.glob("#{design}-*.{json,txt}").map { |f| File.basename(f, ".*") }.max
+  unless stem
+    lines << "| #{design} | — | — | — | Unmeasured |"
+    next
+  end
+  begin
+    result = read_run(design, stem)
+    rates[design] = result[:throughput]
+    lines << "| #{design} | #{result[:oversold]} | #{format('%.2f', rates[design].floor(2))} | #{result[:p99]} | [k6](#{stem}.json) · [invariant](#{stem}.txt) |"
+  rescue KeyError, ArgumentError, JSON::ParserError, Errno::ENOENT, RuntimeError => error
+    errors << "#{stem}: #{error.message}"
+    lines << "| #{design} | — | — | — | Invalid run: #{stem} |"
+  end
+end
+if rates["locked"] && rates["flashpoint"]
+  ratio = (rates["flashpoint"] / rates["locked"]).floor(1)
+  lines << "" << "Flashpoint throughput divided by locked throughput was **#{format('%.1f', ratio)}×** (rounded down)."
+end
+lines << "" << "Rates use the interval from the first checkout start to the last checkout response. Displayed rates are truncated to two decimals."
+text = lines.join("\n") + "\n"
+Tempfile.create(["load-summary", ".md"], ".") do |file|
+  file.write(text)
+  file.close
+  File.rename(file.path, "summary.md")
+end
+puts text
+abort errors.join("\n") unless errors.empty?

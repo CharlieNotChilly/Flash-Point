@@ -61,7 +61,7 @@ docker compose exec -e RAILS_ENV=test web bundle exec rspec
 
 Between runs, `docker compose exec web bin/rails checkout:reset` deletes development orders for designs A and B and restores each product’s stock to its initial value.
 
-Run `bin/load_test locked` from the host with Compose running. It resets development stock and orders, runs the locked checkout benchmark, and saves the k6 summary and inventory check under a matching timestamp in `results/load/`. A failed threshold, inventory mismatch, or discrepancy between purchases and committed orders makes the command exit nonzero.
+Run `bin/load_test locked` and `bin/load_test flashpoint` sequentially from the host. Each command starts a fresh local Compose project, runs k6, checks persisted orders against successful HTTP checkouts, and removes its temporary containers and volumes. The Flashpoint invariant waits for confirmed orders to drain. Raw k6 summaries and inventory checks share a timestamp in `results/load/`. Run `bin/summarize_load` to regenerate `results/load/summary.md` from the most recent saved evidence for each design.
 
 ## Redis reservations
 

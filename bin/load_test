@@ -3,33 +3,40 @@ require "fileutils"
 require "json"
 require "time"
 
-abort "Usage: bin/load_test locked" unless ARGV == ["locked"]
+design = ARGV.first
+abort "Usage: bin/load_test locked|flashpoint" unless ARGV.size == 1 && %w[locked flashpoint].include?(design)
 Dir.chdir(File.expand_path("..", __dir__))
 FileUtils.mkdir_p(["tmp", "results/load"])
 
-# Concurrent resets would invalidate both measurements.
 File.open("tmp/load_test.lock", "w") do |lock|
   abort "Another load test is running" unless lock.flock(File::LOCK_EX | File::LOCK_NB)
 
-  stem = "results/load/locked-#{Time.now.utc.strftime('%Y%m%dT%H%M%S%6NZ')}"
-  summary = "#{stem}.json"
-  invariant = "#{stem}.txt"
-  web = %w[docker compose exec -T web]
-
+  timestamp = Time.now.utc.strftime("%Y%m%dT%H%M%S%6NZ")
+  stem = "results/load/#{design}-#{timestamp}"
+  project = "flashpoint-bench-#{timestamp.downcase}-#{Process.pid}"
+  compose = ["docker", "compose", "-p", project, "-f", "docker-compose.yml", "-f", "load/compose.yml"]
   abort "k6 is unavailable" unless system("k6", "version")
-  abort "Checkout reset failed" unless system(*web, "bin/rails", "checkout:reset")
 
-  load_ok = system("k6", "run", "--quiet", "--no-usage-report", "--address=",
-                   "--env", "DESIGN=locked", "--summary-export", summary, "load/checkout.js")
-  invariant_ok = system(*web, "bin/check_invariant", out: invariant, err: [:child, :out])
-  report = File.read(invariant)
-  puts report
-  puts "Invariant output: #{invariant}"
-  abort "k6 did not produce a summary" unless File.size?(summary)
-  puts "k6 summary: #{summary}"
-  abort "Load test or inventory check failed" unless load_ok && invariant_ok
+  begin
+    abort "Benchmark stack failed to start" unless system(*compose, "up", "--build", "-d", "--wait")
+    address = IO.popen([*compose, "port", "web", "3000"], &:read).strip
+    port = address[/\A127\.0\.0\.1:(\d+)\z/, 1]
+    abort "Could not resolve local benchmark port" unless port
 
-  created = JSON.parse(File.read(summary)).fetch("metrics").fetch("created").fetch("count")
-  count = report[/^order_count=(\d+)$/, 1]
-  abort "HTTP purchases and persisted order count disagree" unless count && Integer(count) == created
+    load_ok = system("k6", "run", "--quiet", "--no-usage-report", "--address=",
+                     "-e", "DESIGN=#{design}", "-e", "BENCH_PORT=#{port}", "-e", "RUN_ID=#{timestamp}",
+                     "--summary-export", "#{stem}.json", "load/checkout.js")
+    invariant_ok = system(*compose, "exec", "-T", "web", "bin/check_invariant", design,
+                          out: "#{stem}.txt", err: [:child, :out])
+    report = File.read("#{stem}.txt")
+    puts report
+    puts "Load evidence: #{stem}.{json,txt}"
+    abort "Load test or inventory check failed" unless load_ok && invariant_ok
+
+    created = JSON.parse(File.read("#{stem}.json")).fetch("metrics").fetch("created").fetch("count")
+    count = report[/^order_count=(\d+)$/, 1]
+    abort "HTTP purchases and persisted orders disagree" unless count && Integer(count) == created
+  ensure
+    abort "Could not remove benchmark stack #{project}" unless system(*compose, "down", "--volumes")
+  end
 end
