@@ -1,5 +1,7 @@
 # Flashpoint
 
+[![CI](https://github.com/CharlieNotChilly/Flash-Point/actions/workflows/ci.yml/badge.svg)](https://github.com/CharlieNotChilly/Flash-Point/actions/workflows/ci.yml)
+
 A flash-sale checkout engine that never oversells. Thousands of buyers race for limited stock; Flashpoint reserves stock atomically in Redis with expiring holds and idempotency keys, writes orders through a queue, and proves it with load and chaos tests against a naive design and a Postgres row-lock design.
 
 **Stack:** Ruby on Rails, Redis (Lua), PostgreSQL, Sidekiq, k6

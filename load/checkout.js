@@ -1,15 +1,18 @@
 import http from "k6/http";
 import { Counter, Trend } from "k6/metrics";
 
+const smoke = __ENV.CI_SMOKE === "1";
+const buyers = smoke ? 200 : 5000;
+
 export const options = {
   scenarios: {
-    buyers: { executor: "per-vu-iterations", vus: 5000, iterations: 1, maxDuration: "5m" },
+    buyers: { executor: "per-vu-iterations", vus: buyers, iterations: 1, maxDuration: "5m" },
   },
   summaryTrendStats: ["min", "max", "p(99)"],
   thresholds: {
-    iterations: ["count==5000"],
-    created: ["count==1000"],
-    sold_out: ["count==4000"],
+    iterations: [`count==${buyers}`],
+    created: [smoke ? "count==200" : "count==1000"],
+    sold_out: [smoke ? "count==0" : "count==4000"],
     unexpected: ["count==0"],
   },
 };

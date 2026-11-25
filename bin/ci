@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# Fresh volumes isolate the smoke checkout from developer and benchmark orders.
+compose=(docker compose -p "flashpoint-ci-$(date +%s)-$$" -f docker-compose.yml -f load/compose.yml)
+cleanup() {
+  "${compose[@]}" down --volumes
+}
+trap cleanup EXIT
+"${compose[@]}" up --build -d --wait
+"${compose[@]}" exec -T -e RAILS_ENV=test web bin/rails db:prepare
+"${compose[@]}" exec -T -e RAILS_ENV=test web bundle exec rspec
+
+web_id=$("${compose[@]}" ps -q web)
+docker run --rm -i --network "container:$web_id" grafana/k6:1.7.1 \
+  run --quiet --no-usage-report -e DESIGN=flashpoint -e CI_SMOKE=1 - < load/checkout.js
+
+report=$("${compose[@]}" exec -T web bin/check_invariant flashpoint)
+echo "$report"
+grep -qx 'order_count=200' <<< "$report"
