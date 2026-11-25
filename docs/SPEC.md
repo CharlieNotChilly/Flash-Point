@@ -2,19 +2,27 @@
 
 This file turns each résumé bullet into acceptance criteria. **The code must satisfy every criterion before the matching bullet goes on a résumé.** If the code and this spec disagree, fix the code or change the bullet. Never leave them out of sync.
 
-## Résumé bullets
+## Target résumé bullets
+
+The full target below still requires the naive benchmark and 50 consecutive passing chaos runs.
 
 ```latex
 \resumeProjectHeading
   {Flashpoint -- Flash-Sale Checkout Engine}{Ruby on Rails, Redis, PostgreSQL, Sidekiq, k6}
 \resumeItemListStart
   \resumeItem{Built a flash-sale checkout engine that reserves stock atomically with \textbf{Redis Lua} scripts, expiring holds, and idempotency keys, so concurrent buyers can never oversell.}
-  \resumeItem{Load-tested \textbf{5,000} concurrent buyers on 1,000 units: a naive read-check-write design oversold \textbf{[X]} units, Flashpoint \textbf{0}, at \textbf{[Y]$\times$} the throughput of Postgres row locking and \textbf{[Z] ms} p99.}
+  \resumeItem{Load-tested \textbf{5,000} concurrent buyers on 1,000 units: a naive read-check-write design oversold \textbf{[X]} units, Flashpoint \textbf{0}, at \textbf{0.9$\times$} the throughput of Postgres row locking and \textbf{4,696 ms} p99.}
   \resumeItem{Verified \textbf{0} lost or duplicate orders across \textbf{50} chaos runs that killed Sidekiq workers and Redis mid-sale, using durable Redis persistence, a queue-backed order writer, and an end-to-end stock invariant check.}
 \resumeItemListEnd
 ```
 
-`[X]`, `[Y]`, `[Z]` are **measured**, never chosen. Fill them only from files in `results/`.
+`[X]` remains unmeasured. The recorded B/C runs supply `[Y]` (0.9×, rounded down) and `[Z]` (4,696 ms). The chaos pilot includes a failed run. [Load results](../results/load/summary.md) · [Pilot report](../results/chaos/20261124T053733603868Z/summary.json)
+
+**Measured load-test bullet available now:**
+
+```latex
+\resumeItem{Load-tested simultaneous checkout attempts from \textbf{5,000} virtual buyers against 1,000 units. Flashpoint committed \textbf{1,000 orders} with \textbf{0 oversold units} and a full-checkout p99 of \textbf{4,696 ms}.}
+```
 
 **Early-stage version** (true once bullet 1 criteria pass; use if applying before load and chaos tests are done):
 

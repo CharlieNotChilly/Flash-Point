@@ -2,33 +2,48 @@
 
 [![CI](https://github.com/CharlieNotChilly/Flash-Point/actions/workflows/ci.yml/badge.svg)](https://github.com/CharlieNotChilly/Flash-Point/actions/workflows/ci.yml)
 
-A flash-sale checkout engine that never oversells. Thousands of buyers race for limited stock; Flashpoint reserves stock atomically in Redis with expiring holds and idempotency keys, writes orders through a queue, and proves it with load and chaos tests against a naive design and a Postgres row-lock design.
+Flashpoint is a flash-sale checkout engine built with Ruby on Rails, Redis Lua, Sidekiq, PostgreSQL, and k6. Redis reserves stock for a limited time. When a buyer confirms, Sidekiq writes the order to PostgreSQL. A reconciler recovers confirmations whose jobs were interrupted.
 
-**Stack:** Ruby on Rails, Redis (Lua), PostgreSQL, Sidekiq, k6
+[Watch the 60-second demo](docs/flashpoint-demo.mp4) for excerpts from the recorded load test and chaos pilot.
 
-## Results
+## Load test
 
-All numbers come from files in [`results/`](results/). Hardware: _[fill in CPU, RAM, OS]_. App, databases, and k6 run on the same machine, so compare designs relative to each other.
+On one Apple M5 Pro with 24 GiB RAM running macOS 26.5.2, k6 started 5,000 virtual buyers together against 1,000 units. Each buyer attempted checkout once. Both measured designs committed 1,000 orders and returned 4,000 sold-out responses. [Machine and Docker configuration](results/environment.md) · [Load summaries and raw evidence](results/load/summary.md)
 
-### Load test: 5,000 concurrent buyers, 1,000 units, one attempt each
+| Design | Oversold units | Attempts/s | Full-checkout p99 (ms) |
+|---|---:|---:|---:|
+| A. Naive read-check-write | Unmeasured | — | — |
+| B. PostgreSQL row lock | 0 | 1,059.99 | 4,588 |
+| C. Flashpoint | 0 | 1,034.98 | 4,696 |
 
-| Design | Oversold units | Throughput (checkouts/s) | p99 checkout (ms) |
-|---|---|---|---|
-| A. Naive (read, check, write) | | | |
-| B. Postgres row lock | 0 | | |
-| C. Flashpoint | 0 | | |
+Flashpoint had slightly lower throughput on this machine. Its throughput divided by the row-lock baseline was **0.9×** under the spec’s round-down rule. For a successful Flashpoint buyer, the latency measurement includes both reserve and confirm through the HTTP acknowledgement. The invariant check waits for order persistence. [Measurement definitions](docs/SPEC.md)
 
-Flashpoint throughput vs. row lock: **_×_**
+## Chaos pilot
 
-### Chaos: 50 runs, killing Sidekiq or Redis mid-sale
+Each run killed one service mid-sale, restarted it, and compared acknowledged buyer keys with committed orders.
 
-| Runs | Sidekiq kills | Redis kills | Invariant failures | Lost orders | Duplicate orders |
-|---|---|---|---|---|---|
-| 50 | | | | | |
+| Service killed | Run result | Stock invariant | Lost orders | Duplicate orders |
+|---|---|---|---:|---:|
+| Redis | Passed | Passed | 0 | 0 |
+| Sidekiq | Failed | Passed | 0 | 0 |
+
+The Sidekiq run recorded **167 unexpected checkout outcomes**, which failed the k6 threshold. Both order audits balanced. The required 50-run campaign is outstanding. [Pilot report](results/chaos/20261124T053733603868Z/summary.json) · [Failed k6 run](results/chaos/20261124T053733603868Z/02-k6.json)
 
 ## How it works
 
-See [docs/DESIGN.md](docs/DESIGN.md) for the architecture, data model, Redis keys, and design decisions.
+```mermaid
+flowchart LR
+    Buyer[k6 buyer] --> API[Rails API / Puma]
+    API -->|Reserve, confirm, release| Redis[(Redis Lua / durable AOF)]
+    API -->|Enqueue confirmed hold| Worker[Sidekiq order writer]
+    Worker -->|Insert once per hold and key| DB[(PostgreSQL orders)]
+    Worker -->|Clear pending after commit| Redis
+    Sweeper[Sweeper] -->|Return expired stock| Redis
+    Redis -->|Outstanding confirmations| Sweeper
+    Sweeper -->|Re-enqueue overdue writes| Worker
+```
+
+Redis checks stock, deducts the quantity, and creates the hold in one Lua call. Confirm adds the hold to the pending set before Rails enqueues the job. If the worker stops between the PostgreSQL commit and Redis acknowledgement, the retried job finds the existing order and clears the pending entry. [Architecture and data model](docs/DESIGN.md)
 
 ## Running it
 
