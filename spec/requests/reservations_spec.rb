@@ -20,6 +20,15 @@ RSpec.describe "Reservation endpoints", type: :request do
     expect(response.parsed_body).to eq("status" => "pending")
   end
 
+  it "keeps a confirmed order recoverable when enqueue loses its Redis connection" do
+    id = Reservations.reserve(sku: sku, qty: 1, idem_key: sku).fetch(:hold_id)
+    confirmed_ids << id
+    allow(PersistOrderJob).to receive(:perform_async).and_raise(RedisClient::ConnectionError)
+    post "/confirm", params: { hold_id: id }, headers: headers, as: :json
+    expect(response).to have_http_status(:accepted)
+    expect(redis.call("ZSCORE", "confirmed:pending", id)).to be_present
+  end
+
   it "F1.3 rejects confirmation at expiry without creating an order or a pending entry" do
     now = Time.utc(2026, 1, 1)
     id = Reservations.reserve(sku: sku, qty: 1, idem_key: sku, now: now).fetch(:hold_id)

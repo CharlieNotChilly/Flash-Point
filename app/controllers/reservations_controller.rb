@@ -21,7 +21,7 @@ class ReservationsController < ApplicationController
     result = Reservations.confirm(hold_id, idem_key: @idem_key)
     case result
     when "CONFIRMED", "ALREADY_CONFIRMED"
-      PersistOrderJob.perform_async(hold_id) if result == "CONFIRMED"
+      enqueue_order(hold_id) if result == "CONFIRMED"
       render json: { status: "pending" }, status: :accepted
     when "KEY_MISMATCH"
       render json: { error: "KEY_MISMATCH" }, status: :conflict
@@ -36,6 +36,13 @@ class ReservationsController < ApplicationController
   end
 
   private
+
+  def enqueue_order(hold_id)
+    PersistOrderJob.perform_async(hold_id)
+  rescue RedisClient::ConnectionError => error
+    # The Lua confirmation already persisted the hold in confirmed:pending.
+    Rails.logger.warn("Order enqueue deferred to reconciler: #{error.message}")
+  end
 
   def require_idempotency_key
     @idem_key = request.headers["Idempotency-Key"]

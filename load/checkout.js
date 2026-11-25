@@ -47,6 +47,7 @@ export default function () {
   const headers = { ...params.headers, "Idempotency-Key": `${__ENV.RUN_ID || "local"}-${__VU}` };
   const request = flashpoint ? { ...params, headers } : params;
   const path = flashpoint ? "/reserve" : "/locked/checkout";
+  if (__ENV.CHAOS && __VU === 1) console.log("buyers-started");
   const start = Date.now();
   const first = http.post(base + path, payload, request);
   let end = Date.now();
@@ -61,6 +62,7 @@ export default function () {
     purchased = confirm.status === 202 && json(confirm)?.status === "pending";
   }
 
+  if (__ENV.CHAOS && purchased) console.log(headers["Idempotency-Key"]);
   starts.add(start);
   ends.add(end);
   duration.add(end - start);

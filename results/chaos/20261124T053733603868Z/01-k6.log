@@ -1,0 +1,45 @@
+
+
+  █ THRESHOLDS 
+
+    created
+    ✓ 'count==1000' count=1000
+
+    iterations
+    ✓ 'count==5000' count=5000
+
+    sold_out
+    ✓ 'count==4000' count=4000
+
+    unexpected
+    ✓ 'count==0' count=0
+
+
+  █ TOTAL RESULTS 
+
+    CUSTOM
+    checkout_duration..............: min=409ms         max=8.79s         p(99)=7.85s        
+    checkout_end_epoch_ms..........: min=1795498664867 max=1795498673270 p(99)=1795498672337
+    checkout_start_epoch_ms........: min=1795498664454 max=1795498664581 p(99)=1795498664571
+    created........................: 1000   113.404194/s
+    sold_out.......................: 4000   453.616777/s
+    unexpected.....................: 0      0/s
+
+    HTTP
+    http_req_duration..............: min=68.63ms       max=8.69s         p(99)=7.71s        
+      { expected_response:true }...: min=68.63ms       max=8.69s         p(99)=7.71s        
+    http_req_failed................: 0.00%  0 out of 6000
+    http_reqs......................: 6000   680.425166/s
+
+    EXECUTION
+    iteration_duration.............: min=409.75ms      max=8.79s         p(99)=7.85s        
+    iterations.....................: 5000   567.020972/s
+    vus............................: 161    min=161       max=4777
+    vus_max........................: 5000   min=5000      max=5000
+
+    NETWORK
+    data_received..................: 2.6 MB 299 kB/s
+    data_sent......................: 1.3 MB 143 kB/s
+
+
+

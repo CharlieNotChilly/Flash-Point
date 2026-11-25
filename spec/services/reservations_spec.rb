@@ -15,6 +15,21 @@ RSpec.describe Reservations do
     expect(redis.call("ZSCORE", expiry_key, id).to_i).to eq(expiry)
   end
 
+  it "replays the same reservation after Redis commits but its reply is lost" do
+    lost_reply = true
+    allow(described_class).to receive(:eval_script).and_wrap_original do |original, *args|
+      reply = original.call(*args)
+      if lost_reply
+        lost_reply = false
+        raise RedisClient::ConnectionError, "lost reply"
+      end
+      reply
+    end
+    id = described_class.reserve(sku: sku, qty: 2, idem_key: sku).fetch(:hold_id)
+    expect(redis.call("ZRANGE", expiry_key, 0, -1)).to eq([id])
+    expect(redis.call("GET", stock_key)).to eq("8")
+  end
+
   it "moves a live hold to pending and preserves it on release" do
     id = described_class.reserve(sku: sku, qty: 2, now: now).fetch(:hold_id)
     confirmed_ids << id

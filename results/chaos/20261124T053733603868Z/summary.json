@@ -1,0 +1,61 @@
+{
+  "campaign": "20261124T053733603868Z",
+  "requested": 2,
+  "status": "failed",
+  "runs": [
+    {
+      "number": 1,
+      "target": "redis",
+      "planned_delay_s": 4.287582326062088,
+      "downtime_s": 2.1486473742395598,
+      "passed": true,
+      "started_at_ms": 1795498664181,
+      "killed_at_ms": 1795498665930,
+      "restart_completed_ms": 1795498668342,
+      "k6_exit": 0,
+      "invariant": {
+        "initial_stock": "1000",
+        "remaining_stock": "0",
+        "active_hold_qty": "0",
+        "order_qty": "1000",
+        "order_count": "1000",
+        "distinct_idempotency_keys": "1000",
+        "oversold": "0",
+        "invariant": "PASS"
+      },
+      "attempts": 5000,
+      "acknowledged": 1000,
+      "mid_sale": true,
+      "lost_orders": 0,
+      "duplicate_orders": 0,
+      "unacknowledged_orders": 0
+    },
+    {
+      "number": 2,
+      "target": "sidekiq",
+      "planned_delay_s": 4.913384755058839,
+      "downtime_s": 2.1453655408957806,
+      "passed": false,
+      "started_at_ms": 1795498693348,
+      "killed_at_ms": 1795498695013,
+      "restart_completed_ms": 1795498698502,
+      "k6_exit": 99,
+      "invariant": {
+        "initial_stock": "1000",
+        "remaining_stock": "0",
+        "active_hold_qty": "0",
+        "order_qty": "1000",
+        "order_count": "1000",
+        "distinct_idempotency_keys": "1000",
+        "oversold": "0",
+        "invariant": "PASS"
+      },
+      "attempts": 5000,
+      "acknowledged": 1000,
+      "mid_sale": true,
+      "lost_orders": 0,
+      "duplicate_orders": 0,
+      "unacknowledged_orders": 0
+    }
+  ]
+}

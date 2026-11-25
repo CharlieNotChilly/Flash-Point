@@ -1,0 +1,213 @@
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+Request Failed
+
+
+  █ THRESHOLDS 
+
+    created
+    ✓ 'count==1000' count=1000
+
+    iterations
+    ✓ 'count==5000' count=5000
+
+    sold_out
+    ✗ 'count==4000' count=3833
+
+    unexpected
+    ✗ 'count==0' count=167
+
+
+  █ TOTAL RESULTS 
+
+    CUSTOM
+    checkout_duration..............: min=279ms         max=7.89s         p(99)=7.86s        
+    checkout_end_epoch_ms..........: min=1795498693813 max=1795498701440 p(99)=1795498701439
+    checkout_start_epoch_ms........: min=1795498693534 max=1795498693697 p(99)=1795498693694
+    created........................: 1000   126.491109/s
+    sold_out.......................: 3833   484.84042/s
+    unexpected.....................: 167    21.124015/s
+
+    HTTP
+    http_req_duration..............: min=0s            max=3.77s         p(99)=3.72s        
+      { expected_response:true }...: min=11.22ms       max=3.77s         p(99)=3.72s        
+    http_req_failed................: 2.78%  167 out of 6000
+    http_reqs......................: 6000   758.946653/s
+
+    EXECUTION
+    iteration_duration.............: min=278.9ms       max=7.89s         p(99)=7.86s        
+    iterations.....................: 5000   632.455544/s
+    vus............................: 167    min=167         max=4779
+    vus_max........................: 5000   min=5000        max=5000
+
+    NETWORK
+    data_received..................: 2.6 MB 325 kB/s
+    data_sent......................: 1.2 MB 155 kB/s
+
+
+
+thresholds on metrics 'sold_out, unexpected' have been crossed

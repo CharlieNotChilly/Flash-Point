@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import random
+import re
+import subprocess
+import sys
+import time
+from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "results/chaos"
+
+
+def command(*args, **kwargs):
+    return subprocess.run(args, cwd=ROOT, check=True, text=True, **kwargs)
+
+
+def write_report(folder, report):
+    # Publish only complete files, including when the campaign is interrupted.
+    for name, content in (("summary.json", json.dumps(report, indent=2)), ("summary.md", markdown(report))):
+        temp = folder / (name + ".tmp")
+        temp.write_text(content + "\n")
+        temp.replace(folder / name)
+
+
+def markdown(report):
+    runs = report["runs"]
+    kills = Counter(r["target"] for r in runs if "killed_at_ms" in r)
+    lines = ["# Flashpoint chaos results", "", f"Campaign `{report['campaign']}` — {report['status']}.", "",
+             "| Completed / requested | Sidekiq kills | Redis kills | Failed runs |",
+             "|---:|---:|---:|---:|",
+             f"| {len(runs)} / {report['requested']} | {kills['sidekiq']} | {kills['redis']} | {sum(not r['passed'] for r in runs)} |"]
+    audited = [r for r in runs if "lost_orders" in r]
+    lines += ["", f"Order identities audited in {len(audited)} runs."]
+    if audited:
+        lines += [f"Lost orders: {sum(r['lost_orders'] for r in audited)}. Duplicate orders: {sum(r['duplicate_orders'] for r in audited)}."]
+    return "\n".join(lines)
+
+
+def run_one(compose, port, folder, number, row):
+    command(*compose, "exec", "-T", "-e", "CHAOS_PROJECT=1", "web", "bin/rails", "runner", "load/chaos/reset.rb")
+    prefix = f"{folder.name}-{number}"
+    summary = folder / f"{number:02}-k6.json"
+    receipts = folder / f"{number:02}-receipts.txt"
+    invariant = folder / f"{number:02}-invariant.txt"
+    row["started_at_ms"] = time.time_ns() // 1_000_000
+    with (folder / f"{number:02}-k6.log").open("w") as log:
+        load = subprocess.Popen(["k6", "run", "--quiet", "--address=", "--no-usage-report",
+            "--log-format", "raw", "--console-output", str(receipts), "--summary-export", str(summary),
+            "-e", "CHAOS=1", "-e", "DESIGN=flashpoint", "-e", f"BENCH_PORT={port}", "-e", f"RUN_ID={prefix}",
+            "load/checkout.js"], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+        try:
+            # Avoid injecting before k6 initializes or after the last buyers finish.
+            # Pick a random deadline; inject earlier if confirmations are already nearing completion.
+            start = time.monotonic()
+            while True:
+                elapsed = time.monotonic() - start
+                if load.poll() is not None or elapsed > 45:
+                    raise RuntimeError("No live checkout window for injection")
+                if elapsed >= 1 and receipts.exists():
+                    evidence = receipts.read_text()
+                    if ("buyers-started" in evidence or prefix in evidence) and (
+                            elapsed >= row["planned_delay_s"] or evidence.count(prefix) >= 500):
+                        break
+                time.sleep(0.03)
+            target = row["target"]
+            cid = command(*compose, "ps", "-q", target, capture_output=True).stdout.strip()
+            command(*compose, "kill", "-s", "SIGKILL", target)
+            finished = command("docker", "inspect", "-f", "{{.State.ExitCode}} {{.State.FinishedAt}}", cid, capture_output=True).stdout.split()
+            if finished[0] != "137":
+                raise RuntimeError(f"{target} did not exit from SIGKILL")
+            row["killed_at_ms"] = int(datetime.fromisoformat(finished[1].replace("Z", "+00:00")).timestamp() * 1000)
+            time.sleep(row["downtime_s"])
+            command(*compose, "start", target)
+            row["restart_completed_ms"] = time.time_ns() // 1_000_000
+        finally:
+            row["k6_exit"] = load.wait(timeout=360)
+
+    command(*compose, "exec", "-T", "web", "bin/rails", "runner", "load/chaos/drain.rb")
+    with invariant.open("w") as out:
+        check = subprocess.run([*compose, "exec", "-T", "web", "bin/check_invariant", "flashpoint"],
+                               cwd=ROOT, stdout=out, stderr=subprocess.STDOUT)
+    stock = dict(re.findall(r"^(\w+)=(\w+)$", invariant.read_text(), re.M))
+    row["invariant"] = stock
+    metrics = json.loads(summary.read_text())["metrics"]
+    row["attempts"] = metrics["iterations"]["count"]
+    row["acknowledged"] = metrics["created"]["count"]
+    first = metrics["checkout_start_epoch_ms"]["min"]
+    last = metrics["checkout_end_epoch_ms"]["max"]
+    row["mid_sale"] = first <= row["killed_at_ms"] <= last
+    # Compare actual acknowledged buyer keys to order rows; equal counts alone can hide a substitution.
+    ack = [s for s in receipts.read_text().splitlines() if s.startswith(prefix + "-")]
+    rows = command(*compose, "exec", "-T", "postgres", "psql", "-U", "flashpoint", "-d", "flashpoint_development",
+                   "-Atc", "SELECT idempotency_key FROM orders WHERE design='flashpoint'", capture_output=True).stdout.splitlines()
+    row["lost_orders"] = len(set(ack) - set(rows))
+    row["duplicate_orders"] = len(rows) - len(set(rows))
+    row["unacknowledged_orders"] = len(set(rows) - set(ack))
+    row["passed"] = (row["k6_exit"] == check.returncode == 0 and stock.get("invariant") == "PASS" and
+                     row["mid_sale"] and row["attempts"] == 5000 and len(set(ack)) == row["acknowledged"] == 1000 and
+                     row["lost_orders"] == row["duplicate_orders"] == row["unacknowledged_orders"] == 0)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--runs", required=True, type=int)
+    args = parser.parse_args()
+    if args.runs < 1:
+        parser.error("--runs must be positive")
+    campaign = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    folder = OUT / campaign
+    folder.mkdir(parents=True)
+    project = f"flashpoint-chaos-{campaign.lower()}"
+    compose = ["docker", "compose", "-p", project, "-f", "docker-compose.yml", "-f", "load/compose.yml"]
+    targets = (["sidekiq", "redis"] * ((args.runs + 1) // 2))[:args.runs]
+    random.shuffle(targets)
+    report = {"campaign": campaign, "requested": args.runs, "status": "incomplete", "runs": []}
+    try:
+        command(*compose, "up", "--build", "-d", "--wait")
+        address = command(*compose, "port", "web", "3000", capture_output=True).stdout.strip()
+        port = re.fullmatch(r"127\.0\.0\.1:(\d+)", address).group(1)
+        for number, target in enumerate(targets, 1):
+            row = {"number": number, "target": target, "planned_delay_s": random.uniform(1, 5),
+                   "downtime_s": random.uniform(1, 3), "passed": False}
+            try:
+                run_one(compose, port, folder, number, row)
+            except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
+                row["error"] = str(error)
+            report["runs"].append(row)
+            write_report(folder, report)
+            print(f"Run {number}/{args.runs} {target}: {row}", flush=True)
+            if not row["passed"]:
+                break
+        ok = len(report["runs"]) == args.runs and all(r["passed"] for r in report["runs"])
+        report["status"] = "passed" if ok else "failed"
+        write_report(folder, report)
+        if args.runs == 50:
+            write_report(OUT, report)
+        return 0 if ok else 1
+    finally:
+        command(*compose, "down", "--volumes")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

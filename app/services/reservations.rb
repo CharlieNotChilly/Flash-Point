@@ -44,11 +44,23 @@ class Reservations
   end
 
   def self.run(name, keys, *args)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+    begin
+      eval_script(name, keys, args)
+    rescue RedisClient::ConnectionError
+      # The same keys and arguments are replayed if Redis restarts before its reply arrives.
+      raise if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+      sleep 0.1
+      retry
+    end
+  end
+
+  def self.eval_script(name, keys, args)
     sha, source = SCRIPTS.fetch(name)
     REDIS.call("EVALSHA", sha, keys.size, *keys, *args)
   rescue RedisClient::CommandError => error
     raise unless error.message.start_with?("NOSCRIPT")
     REDIS.call("EVAL", source, keys.size, *keys, *args)
   end
-  private_class_method :run
+  private_class_method :run, :eval_script
 end
